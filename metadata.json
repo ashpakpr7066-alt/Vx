@@ -1,0 +1,6 @@
+{
+  "name": "VN Studio",
+  "description": "Professional video and image editor with multi-track timeline, keyframe animation, and advanced cinematic color grading.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
