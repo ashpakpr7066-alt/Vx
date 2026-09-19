@@ -277,23 +277,6 @@ fun TimelineView(
                     )
                 }
 
-                // Fixed center playhead overlay.
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .width(2.dp)
-                        .fillMaxHeight()
-                        .background(Color.White)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                    )
-                }
-
                 // Authentic VN Floating Context Menu Capsule above selected clip
                 if (selectedClip != null) {
                     val clipStartDp = with(density) {
@@ -322,6 +305,28 @@ fun TimelineView(
                         onDelete = onDeleteClip,
                         modifier = Modifier
                             .offset(x = popupCenterDp, y = trackYOffset)
+                    )
+                }
+            }
+
+            // Fixed center playhead overlay: stays stationary while timeline scrolls underneath.
+            Box(
+                modifier = Modifier
+                    .matchParentSize(),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(2.dp)
+                        .fillMaxHeight()
+                        .background(Color.White)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
                     )
                 }
             }
