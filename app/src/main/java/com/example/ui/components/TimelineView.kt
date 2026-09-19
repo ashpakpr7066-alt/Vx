@@ -60,32 +60,16 @@ fun TimelineView(
     val density = LocalDensity.current
     val scrollState = rememberScrollState()
     val totalDurationMs = project.maxDurationMs.coerceAtLeast(15000L)
-    val timelineWidthDp = with(density) {
+    val timelineContentWidthDp = with(density) {
         ((totalDurationMs / 1000f) * pixelsPerSecond).toDp()
     }
-
-    // Fixed-center playhead: the timeline scrolls underneath it during playback.
-    // Leading/trailing viewport padding keeps the first/last frame reachable at center.
-    BoxWithConstraints(modifier = modifier) {
-        val viewportWidthPx = with(density) { maxWidth.toPx() }
-        val viewportWidthDp = maxWidth
-        val halfViewportPx = viewportWidthPx / 2f
-
-        LaunchedEffect(currentTimeMs, viewportWidthPx, pixelsPerSecond) {
-            val timeOffsetPx = (currentTimeMs / 1000f) * pixelsPerSecond
-            val targetScroll = timeOffsetPx.coerceAtLeast(0f).toInt()
-            if (kotlin.math.abs(scrollState.value - targetScroll) > 2) {
-                scrollState.scrollTo(targetScroll)
-            }
-        }
 
     // VN 4-Track Order: AUDIO (top), TEXT, PIP, MAIN_VIDEO (bottom)
     val trackOrder = listOf(TrackType.AUDIO, TrackType.TEXT, TrackType.PIP, TrackType.MAIN_VIDEO)
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .fillMaxHeight()
             .background(Color(0xFF0F1117))
             .testTag("timeline_view")
     ) {
@@ -169,34 +153,46 @@ fun TimelineView(
                 }
             }
 
-            // 2. Scrollable Timeline Tracks. The playhead itself stays fixed at viewport center.
-            Box(
+            // 2. Timeline viewport: content scrolls underneath a fixed center playhead
+            BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
             ) {
+                val viewportWidthDp = maxWidth
+                val viewportWidthPx = with(density) { viewportWidthDp.toPx() }
+                val halfViewportPx = viewportWidthPx / 2f
+
+                LaunchedEffect(currentTimeMs, viewportWidthPx, pixelsPerSecond) {
+                    val timeOffsetPx = (currentTimeMs / 1000f) * pixelsPerSecond
+                    val targetScroll = (timeOffsetPx - halfViewportPx).coerceAtLeast(0f).toInt()
+                    if (kotlin.math.abs(scrollState.value - targetScroll) > 2) {
+                        scrollState.scrollTo(targetScroll)
+                    }
+                }
+
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .horizontalScroll(scrollState)
-                        .pointerInput(totalDurationMs, pixelsPerSecond) {
-                            detectDragGestures { change, _ ->
-                                change.consume()
-                                val contentX = scrollState.value + change.position.x - halfViewportPx
-                                val newTimeMs = ((contentX / pixelsPerSecond) * 1000f)
-                                    .toLong()
-                                    .coerceIn(0L, totalDurationMs)
-                                onSeek(newTimeMs)
-                            }
+                        .pointerInput(totalDurationMs, pixelsPerSecond, viewportWidthPx) {
+                        detectDragGestures { change, _ ->
+                            change.consume()
+                            val contentX = scrollState.value + change.position.x - halfViewportPx
+                            val newTimeMs = ((contentX / pixelsPerSecond) * 1000f)
+                                .toLong()
+                                .coerceIn(0L, totalDurationMs)
+                            onSeek(newTimeMs)
                         }
-                ) {
+                    }
+            ) {
                 Column(
                     modifier = Modifier
-                        .width(timelineWidthDp + viewportWidthDp)
+                        .width(timelineContentWidthDp + viewportWidthDp)
                         .fillMaxHeight()
                         .padding(vertical = 4.dp)
                 ) {
-                    // Leading spacer places time 0 under the fixed center playhead.
+                    // Leading space keeps time 0 under the center playhead.
                     Spacer(modifier = Modifier.width(viewportWidthDp / 2f))
 
                     // Track 1: Audio Lane
@@ -307,27 +303,26 @@ fun TimelineView(
                             .offset(x = popupCenterDp, y = trackYOffset)
                     )
                 }
-            }
 
-            // Fixed center playhead overlay: stays stationary while timeline scrolls underneath.
-            Box(
-                modifier = Modifier
-                    .matchParentSize(),
-                contentAlignment = Alignment.TopCenter
-            ) {
+                // Fixed center playhead overlay; the timeline moves underneath it.
                 Box(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .fillMaxHeight()
-                        .background(Color.White)
+                    modifier = Modifier.matchParentSize(),
+                    contentAlignment = Alignment.TopCenter
                 ) {
                     Box(
                         modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .size(6.dp)
-                            .clip(CircleShape)
+                            .width(2.dp)
+                            .fillMaxHeight()
                             .background(Color.White)
-                    )
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                        )
+                    }
                 }
             }
         }
