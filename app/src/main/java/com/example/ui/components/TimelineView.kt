@@ -61,24 +61,31 @@ fun TimelineView(
     val scrollState = rememberScrollState()
     val totalDurationMs = project.maxDurationMs.coerceAtLeast(15000L)
     val timelineWidthDp = with(density) {
-        ((totalDurationMs / 1000f) * pixelsPerSecond).toDp() + 600.dp
+        ((totalDurationMs / 1000f) * pixelsPerSecond).toDp()
     }
 
-    // Auto-scroll timeline to keep playhead in view while playing
-    LaunchedEffect(currentTimeMs) {
-        val playheadOffsetPx = (currentTimeMs / 1000f) * pixelsPerSecond
-        val targetScroll = (playheadOffsetPx - 250).coerceAtLeast(0f).toInt()
-        if (Math.abs(scrollState.value - targetScroll) > 400) {
-            scrollState.scrollTo(targetScroll)
+    // Fixed-center playhead: the timeline scrolls underneath it during playback.
+    // Leading/trailing viewport padding keeps the first/last frame reachable at center.
+    BoxWithConstraints(modifier = modifier) {
+        val viewportWidthPx = with(density) { maxWidth.toPx() }
+        val viewportWidthDp = maxWidth
+        val halfViewportPx = viewportWidthPx / 2f
+
+        LaunchedEffect(currentTimeMs, viewportWidthPx, pixelsPerSecond) {
+            val timeOffsetPx = (currentTimeMs / 1000f) * pixelsPerSecond
+            val targetScroll = timeOffsetPx.coerceAtLeast(0f).toInt()
+            if (kotlin.math.abs(scrollState.value - targetScroll) > 2) {
+                scrollState.scrollTo(targetScroll)
+            }
         }
-    }
 
     // VN 4-Track Order: AUDIO (top), TEXT, PIP, MAIN_VIDEO (bottom)
     val trackOrder = listOf(TrackType.AUDIO, TrackType.TEXT, TrackType.PIP, TrackType.MAIN_VIDEO)
 
     Box(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
+            .fillMaxHeight()
             .background(Color(0xFF0F1117))
             .testTag("timeline_view")
     ) {
@@ -162,29 +169,36 @@ fun TimelineView(
                 }
             }
 
-            // 2. Scrollable Timeline Tracks Canvas
+            // 2. Scrollable Timeline Tracks. The playhead itself stays fixed at viewport center.
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .horizontalScroll(scrollState)
-                    .pointerInput(totalDurationMs, pixelsPerSecond) {
-                        detectDragGestures { change, _ ->
-                            change.consume()
-                            val clickX = change.position.x
-                            val newTimeMs = ((clickX / pixelsPerSecond) * 1000f)
-                                .toLong()
-                                .coerceIn(0L, totalDurationMs)
-                            onSeek(newTimeMs)
-                        }
-                    }
             ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .horizontalScroll(scrollState)
+                        .pointerInput(totalDurationMs, pixelsPerSecond) {
+                            detectDragGestures { change, _ ->
+                                change.consume()
+                                val contentX = scrollState.value + change.position.x - halfViewportPx
+                                val newTimeMs = ((contentX / pixelsPerSecond) * 1000f)
+                                    .toLong()
+                                    .coerceIn(0L, totalDurationMs)
+                                onSeek(newTimeMs)
+                            }
+                        }
+                ) {
                 Column(
                     modifier = Modifier
-                        .width(timelineWidthDp)
+                        .width(timelineWidthDp + viewportWidthDp)
                         .fillMaxHeight()
                         .padding(vertical = 4.dp)
                 ) {
+                    // Leading spacer places time 0 under the fixed center playhead.
+                    Spacer(modifier = Modifier.width(viewportWidthDp / 2f))
+
                     // Track 1: Audio Lane
                     TrackLane(
                         trackType = TrackType.AUDIO,
@@ -263,19 +277,14 @@ fun TimelineView(
                     )
                 }
 
-                // White Playhead Needle spanning all tracks
-                val playheadOffsetDp = with(density) {
-                    ((currentTimeMs / 1000f) * pixelsPerSecond).toDp()
-                }
-
+                // Fixed center playhead overlay.
                 Box(
                     modifier = Modifier
-                        .offset(x = playheadOffsetDp - 1.dp)
+                        .align(Alignment.Center)
                         .width(2.dp)
                         .fillMaxHeight()
                         .background(Color.White)
                 ) {
-                    // Playhead top tip
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
