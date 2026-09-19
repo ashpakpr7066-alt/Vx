@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -60,8 +61,17 @@ fun TimelineView(
     val density = LocalDensity.current
     val scrollState = rememberScrollState()
     val totalDurationMs = project.maxDurationMs.coerceAtLeast(15000L)
-    val timelineContentWidthDp = with(density) {
-        ((totalDurationMs / 1000f) * pixelsPerSecond).toDp()
+    val timelineWidthDp = with(density) {
+        ((totalDurationMs / 1000f) * pixelsPerSecond).toDp() + 600.dp
+    }
+
+    // Auto-scroll timeline to keep playhead in view while playing
+    LaunchedEffect(currentTimeMs) {
+        val playheadOffsetPx = (currentTimeMs / 1000f) * pixelsPerSecond
+        val targetScroll = (playheadOffsetPx - 250).coerceAtLeast(0f).toInt()
+        if (Math.abs(scrollState.value - targetScroll) > 400) {
+            scrollState.scrollTo(targetScroll)
+        }
     }
 
     // VN 4-Track Order: AUDIO (top), TEXT, PIP, MAIN_VIDEO (bottom)
@@ -153,33 +163,17 @@ fun TimelineView(
                 }
             }
 
-            // 2. Timeline viewport: content scrolls underneath a fixed center playhead
-            BoxWithConstraints(
+            // 2. Scrollable Timeline Tracks Canvas
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-            ) {
-                val viewportWidthDp = maxWidth
-                val viewportWidthPx = with(density) { viewportWidthDp.toPx() }
-                val halfViewportPx = viewportWidthPx / 2f
-
-                LaunchedEffect(currentTimeMs, viewportWidthPx, pixelsPerSecond) {
-                    val timeOffsetPx = (currentTimeMs / 1000f) * pixelsPerSecond
-                    val targetScroll = (timeOffsetPx - halfViewportPx).coerceAtLeast(0f).toInt()
-                    if (kotlin.math.abs(scrollState.value - targetScroll) > 2) {
-                        scrollState.scrollTo(targetScroll)
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .horizontalScroll(scrollState)
-                        .pointerInput(totalDurationMs, pixelsPerSecond, viewportWidthPx) {
+                    .horizontalScroll(scrollState)
+                    .pointerInput(totalDurationMs, pixelsPerSecond) {
                         detectDragGestures { change, _ ->
                             change.consume()
-                            val contentX = scrollState.value + change.position.x - halfViewportPx
-                            val newTimeMs = ((contentX / pixelsPerSecond) * 1000f)
+                            val clickX = change.position.x
+                            val newTimeMs = ((clickX / pixelsPerSecond) * 1000f)
                                 .toLong()
                                 .coerceIn(0L, totalDurationMs)
                             onSeek(newTimeMs)
@@ -188,13 +182,10 @@ fun TimelineView(
             ) {
                 Column(
                     modifier = Modifier
-                        .width(timelineContentWidthDp + viewportWidthDp)
+                        .width(timelineWidthDp)
                         .fillMaxHeight()
                         .padding(vertical = 4.dp)
                 ) {
-                    // Leading space keeps time 0 under the center playhead.
-                    Spacer(modifier = Modifier.width(viewportWidthDp / 2f))
-
                     // Track 1: Audio Lane
                     TrackLane(
                         trackType = TrackType.AUDIO,
@@ -273,6 +264,30 @@ fun TimelineView(
                     )
                 }
 
+                // Fixed center playhead: compensate for the scroll so the needle stays centered.
+                val configuration = LocalConfiguration.current
+                val viewportCenterDp = (configuration.screenWidthDp.dp - 58.dp) / 2f
+                val playheadTimeDp = with(density) {
+                    ((currentTimeMs / 1000f) * pixelsPerSecond).toDp()
+                }
+                val scrollDp = with(density) { scrollState.value.toDp() }
+
+                Box(
+                    modifier = Modifier
+                        .offset(x = scrollDp + viewportCenterDp - playheadTimeDp - 1.dp)
+                        .width(2.dp)
+                        .fillMaxHeight()
+                        .background(Color.White)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                    )
+                }
+
                 // Authentic VN Floating Context Menu Capsule above selected clip
                 if (selectedClip != null) {
                     val clipStartDp = with(density) {
@@ -302,27 +317,6 @@ fun TimelineView(
                         modifier = Modifier
                             .offset(x = popupCenterDp, y = trackYOffset)
                     )
-                }
-
-                // Fixed center playhead overlay; the timeline moves underneath it.
-                Box(
-                    modifier = Modifier.matchParentSize(),
-                    contentAlignment = Alignment.TopCenter
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(2.dp)
-                            .fillMaxHeight()
-                            .background(Color.White)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(Color.White)
-                        )
-                    }
                 }
             }
         }
