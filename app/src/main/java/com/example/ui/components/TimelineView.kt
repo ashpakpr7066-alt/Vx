@@ -713,12 +713,19 @@ private fun FilmstripClipItem(
                     .width(14.dp)
                     .fillMaxHeight()
                     .background(Color(0xFF38BDF8))
-                    .pointerInput(clip.id) {
-                        detectDragGestures { change, dragAmount ->
+                    .pointerInput(clip.id, clip.durationMs, pixelsPerSecond) {
+                        var dragDurationMs = clip.durationMs
+                        detectDragGestures(
+                            onDragStart = {
+                                dragDurationMs = clip.durationMs
+                            },
+                            onDragEnd = { },
+                            onDragCancel = { }
+                        ) { change, dragAmount ->
                             change.consume()
                             val deltaMs = ((dragAmount.x / pixelsPerSecond) * 1000f).toLong()
-                            val newDuration = (clip.durationMs + deltaMs).coerceAtLeast(500L)
-                            onTrim(clip.startTimeMs, newDuration)
+                            dragDurationMs = (dragDurationMs + deltaMs).coerceAtLeast(500L)
+                            onTrim(clip.startTimeMs, dragDurationMs)
                         }
                     },
                 contentAlignment = Alignment.Center
@@ -860,12 +867,19 @@ private fun TimelineClipItem(
                     .width(14.dp)
                     .fillMaxHeight()
                     .background(Color(0xFF38BDF8))
-                    .pointerInput(clip.id) {
-                        detectDragGestures { change, dragAmount ->
+                    .pointerInput(clip.id, clip.durationMs, pixelsPerSecond) {
+                        var dragDurationMs = clip.durationMs
+                        detectDragGestures(
+                            onDragStart = {
+                                dragDurationMs = clip.durationMs
+                            },
+                            onDragEnd = { },
+                            onDragCancel = { }
+                        ) { change, dragAmount ->
                             change.consume()
                             val deltaMs = ((dragAmount.x / pixelsPerSecond) * 1000f).toLong()
-                            val newDuration = (clip.durationMs + deltaMs).coerceAtLeast(500L)
-                            onTrim(clip.startTimeMs, newDuration)
+                            dragDurationMs = (dragDurationMs + deltaMs).coerceAtLeast(500L)
+                            onTrim(clip.startTimeMs, dragDurationMs)
                         }
                     },
                 contentAlignment = Alignment.Center
