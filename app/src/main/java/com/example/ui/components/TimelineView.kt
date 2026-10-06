@@ -867,7 +867,7 @@ private fun TimelineClipItem(
                     .width(14.dp)
                     .fillMaxHeight()
                     .background(Color(0xFF38BDF8))
-                    .pointerInput(clip.id, clip.durationMs, pixelsPerSecond) {
+                    .pointerInput(clip.id, pixelsPerSecond) {
                         var dragDurationMs = clip.durationMs
                         detectDragGestures(
                             onDragStart = {
