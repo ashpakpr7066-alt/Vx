@@ -279,9 +279,29 @@ class EditorViewModel(
 
     fun trimClip(clip: ClipModel, newStartMs: Long, newDurationMs: Long) {
         val proj = _uiState.value.project ?: return
-        val updated = clip.copy(startTimeMs = newStartMs, durationMs = newDurationMs)
+
+        // Keep trim values valid while dragging either timeline handle.
+        val safeStartMs = newStartMs.coerceAtLeast(0L)
+        val safeDurationMs = newDurationMs.coerceAtLeast(500L)
+        val updated = clip.copy(
+            startTimeMs = safeStartMs,
+            durationMs = safeDurationMs
+        )
+
         val updatedClips = proj.clips.map { if (it.id == clip.id) updated else it }
-        val updatedProject = proj.copy(clips = updatedClips)
+
+        // Extending a clip must also extend the project/timeline duration,
+        // otherwise the new right edge gets cut off by playback/export UI.
+        val newProjectDuration = updatedClips.maxOfOrNull { it.endTimeMs }
+            ?.coerceAtLeast(15000L)
+            ?.coerceAtLeast(proj.maxDurationMs)
+            ?: proj.maxDurationMs
+
+        val updatedProject = proj.copy(
+            clips = updatedClips,
+            maxDurationMs = newProjectDuration
+        )
+
         _uiState.update { it.copy(project = updatedProject) }
         saveProjectAsync(updatedProject)
     }
