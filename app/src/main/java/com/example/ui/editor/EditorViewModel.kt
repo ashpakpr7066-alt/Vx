@@ -299,7 +299,7 @@ class EditorViewModel(
 
         val updatedProject = proj.copy(
             clips = updatedClips,
-            maxDurationMs = newProjectDuration
+            durationMs = newProjectDuration
         )
 
         _uiState.update { it.copy(project = updatedProject) }
